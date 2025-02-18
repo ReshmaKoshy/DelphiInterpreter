@@ -44,3 +44,63 @@ Object-oriented features on top of the Pascal ANTLR grammr by handling the creat
   ```
 
 
+  # Test Case Documentation: test1.pas
+
+  ## Scenario Description
+  Tests the basic object-oriented programming concepts using a single class object.
+
+  ## Test Components
+  1. **Object Creation**
+    - Creates a single instance of the class
+    - Demonstrates constructor invocation
+
+  2. **Input Handling**
+    - Accepts input values from command line
+    - Processes user input for object initialization
+
+  3. **Encapsulation Testing**
+    - Implements getter methods to access private field values
+    - Validates proper data hiding and access control
+    - Demonstrates proper encapsulation principles
+
+  4. **Memory Management**
+    - Tests proper object destruction
+    - Verifies destructor call for cleanup
+    - Ensures proper memory deallocation
+
+  ## Test Flow
+  1. Program execution starts
+  2. User inputs required values
+  3. Object is created with constructor
+  4. Field values are displayed using getter methods
+  5. Object is destroyed via destructor
+
+# Test Case Documentation: test2.pas
+
+## Scenario Description
+This is a negative scenario where we try to access an object after calling destructor
+
+## Test Components
+1. **Invalid Access Testing**
+  - Attempts to access destroyed objects
+  - Tests system response to illegal operations
+  - Tests destructor behavior
+
+## Test Flow
+1. Create object instance
+2. Call destructor explicitly
+3. Attempt to access destroyed object
+4. Verify appropriate exception handling
+
+
+# Test Case Documentation: test2.pas
+
+## Scenario Description
+This test case demonstrates the creation and management of multiple class instances, showcasing proper object lifecycle handling and interaction between objects. It verifies the system's ability to maintain multiple objects simultaneously while ensuring proper memory management and encapsulation.
+
+## Test Flow
+1. Create multiple object instances
+2. Initialize objects with different values
+3. Verify data consistency across instances
+5. Call destructors in sequence
+6. Validate proper cleanup of all instances
