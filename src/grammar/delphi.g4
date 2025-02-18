@@ -31,7 +31,12 @@ formalParameterList
     ;
 
 formalParameterSection
-    : identifierList COLON simpleType
+    : parameterModifier? identifierList COLON simpleType
+    ;
+
+parameterModifier
+    : CONST
+    | VAR
     ;
 
 identifierList
@@ -40,12 +45,12 @@ identifierList
     
 // Constructor implementation (outside class)
 constructorImpl
-    : CONSTRUCTOR variable (formalParameterList)? SEMI compoundStatement
+    : CONSTRUCTOR (classIdentifier DOT constructorIdentifier) (formalParameterList)? SEMI compoundStatement SEMI
     ;
 
 // Destructor implementation (outside class)
 destructorImpl
-    : DESTRUCTOR variable SEMI destructorBody
+    : DESTRUCTOR (classIdentifier DOT IDENT) SEMI destructorBody SEMI
     ;
 
 destructorBody
@@ -60,11 +65,11 @@ inheritedDestructorCall
     ;
 
 procedureImpl
-    : PROCEDURE variable (formalParameterList)? SEMI compoundStatement
+    : PROCEDURE variable (formalParameterList)? SEMI compoundStatement SEMI
     ;
 
 functionImpl
-    : FUNCTION variable (formalParameterList)? COLON resultType SEMI compoundStatement
+    : FUNCTION variable (formalParameterList)? COLON resultType SEMI compoundStatement SEMI
     ;
 
 resultType
@@ -85,7 +90,7 @@ destructorIdentifier
     ;
 
 constructorIdentifier
-    : IDENT
+    : CREATE
     ;
 
 compoundStatement
@@ -94,11 +99,9 @@ compoundStatement
 
 
 statements
-    : (statement)* //(SEMI statement)* SEMI
+    : (statement)*
     ;
 
-
-// Add a new rule for class declarations
 classDeclarationPart
     : TYPE classDeclaration (SEMI classDeclaration)* SEMI
     ;
@@ -124,13 +127,8 @@ CONSTRUCTOR : 'CONSTRUCTOR';
 DESTRUCTOR  : 'DESTRUCTOR';
 OVERRIDE    : 'OVERRIDE';
 INHERITED   : 'INHERITED';
-// CREATE      : 'CREATE';
+CREATE      : 'CREATE';
 PROPERTY    : 'PROPERTY';
-// READ        : 'READ';
-// WRITE       : 'WRITE';
-DEFAULT     : 'DEFAULT';
-STORED      : 'STORED';
-IMPLEMENTS  : 'IMPLEMENTS';
 
 // Console I/O keywords
 WRITELN    : 'WRITELN';
@@ -141,7 +139,7 @@ READ       : 'READ';
 // Class definition
 classType
     : CLASS 
-      (classVisibility | classBody)  // classBody is Default - if no visibility section (public by default in Delphi)
+      (classVisibility | classBody)  // classBody is Default - if no visibility section (public by default)
       END
     ;
 
@@ -169,27 +167,27 @@ classField
 
 // Method declaration
 classMethod
-    : procedureDeclaration
-    | functionDeclaration
+    : procedureDecl
+    | functionDecl
     ;
 
 
-// Constructor declaration (inside class)
+// Constructor declaration
 constructorDecl
     : CONSTRUCTOR constructorIdentifier (formalParameterList)? SEMI
     ;
 
-// Destructor declaration (inside class)
+// Destructor declaration
 destructorDecl
-    : DESTRUCTOR destructorIdentifier SEMI (OVERRIDE SEMI)? (destructorBody)?
+    : DESTRUCTOR destructorIdentifier SEMI (OVERRIDE SEMI)?
     ;
 
-procedureDeclaration
-    : PROCEDURE IDENT (formalParameterList)? SEMI (compoundStatement)?
+procedureDecl
+    : PROCEDURE IDENT (formalParameterList)? SEMI
     ;
 
-functionDeclaration
-    : FUNCTION IDENT (formalParameterList)? COLON resultType SEMI (compoundStatement)?
+functionDecl
+    : FUNCTION IDENT (formalParameterList)? COLON resultType SEMI
     ;
 
 propertyDecl
@@ -216,7 +214,7 @@ readStatement
 
 // Object instantiation
 objectCreation
-    : IDENT ASSIGN classIdentifier DOT IDENT (LPAREN parameterList RPAREN)?
+    : IDENT ASSIGN classIdentifier DOT constructorIdentifier (LPAREN parameterList RPAREN)?
     ;
 
 // Basic statements
@@ -225,13 +223,15 @@ statement
     (assignmentStatement
     | consoleStatement
     | objectCreation
-    | constructorCall
-    | destructorCall) SEMI
+    //| constructorCall
+    | destructorCall
+    | functionCall
+    | procedureCall) SEMI
     ;
 
 // Assignment statement rule
 assignmentStatement
-    : variable ASSIGN value
+    : variable ASSIGN expr
     ;
 
 // Variable can be a simple IDENT or field access
@@ -240,29 +240,36 @@ variable
     | classIdentifier DOT IDENT  // For field access like FName or object.field
     ;
 
+expr 
+    : value (CONCAT value)*
+    | functionCall
+    | procedureCall
+    ;
+
 // Value can be number, string, or another variable
 value
-    : IDENT          // Another variable (b in a:=b)
-    | NUMBER             // Number literal (42 in a:=42)
-    | STRING_LITERAL     // String literal ('hello' in a:='hello')
+    : variable          // Another variable (b in a:=b)
+    | NUMBER
+    | STRING_LITERAL
     ;
 
 parameterList
-    :value
-    ;
-// // Variable declaration
-// variableDeclaration
-//     : VAR? IDENT COLON type_ (ASSIGN value)? SEMI
-//     ;
-
-// Constructor call
-constructorCall
-    : classIdentifier DOT constructorIdentifier (LPAREN parameterList RPAREN)?
+    :(value (COMMA value)*)?
     ;
 
 // destructorCall rule
 destructorCall
     : objectIdentifier DOT (FREE | destructorIdentifier)
+    ;
+
+//Constructor call
+functionCall
+    : classIdentifier DOT IDENT (LPAREN parameterList RPAREN)?
+    ;
+
+//Procedure call
+procedureCall
+    : classIdentifier DOT IDENT (LPAREN parameterList RPAREN)?
     ;
 
 // Type definitions
@@ -292,6 +299,8 @@ PROCEDURE : 'PROCEDURE';
 FUNCTION  : 'FUNCTION';
 TYPE      : 'TYPE';
 FREE      : 'FREE';
+CONST     : 'CONST';
+CONCAT    : '+';
 DOT       : '.';
 SEMI      : ';';
 ASSIGN    : ':=';
@@ -304,8 +313,8 @@ EQUAL     : '=';
 // Basic literals
 IDENT         : [a-z][a-z0-9_]*;
 STRING_LITERAL: '\'' (~['])* '\'';
-NUMBER        : [0-9]+ ('.' [0-9]+)?;
 
 // Whitespace and comments
 WS           : [ \t\r\n]+ -> skip;
+NUMBER       : [0-9]+ ('.' [0-9]+)?;
 COMMENT      : '{' .*? '}' -> skip;
