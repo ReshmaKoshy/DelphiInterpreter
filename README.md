@@ -6,7 +6,19 @@ This project is a Delphi interpreter implemented in Java using ANTLR for parsing
 
 # Scope
 
-Object-oriented features on top of the Pascal ANTLR grammr by handling the creation of classes, objects, constructors, destructors, and encapsulation.
+Object-oriented features on top of the Pascal ANTLR grammar by handling:
+- Classes, objects, constructors, and destructors
+- Encapsulation and visibility control
+- Control structures including for loops, while loops with break/continue statements
+- User-defined functions and procedures with formal parameter passing
+- Scoping rules for:
+  - Local and global variables
+  - Class fields and methods
+  - Function/procedure parameters
+- Proper lifetime management of variables based on scope
+- Expression evaluation is done:
+  - Arithmetic operations
+  - Comparison operators (<, >, <=, >=, =, <>)
 
 ## Project Structure
 
@@ -16,17 +28,41 @@ Object-oriented features on top of the Pascal ANTLR grammr by handling the creat
   - **Main.java**: Entry point of the application that initializes the parser and processes the test files.
 
 - **src/main/antlr4/generated/**: Directory for generated parser and lexer classes.
-- **test/pascal/**: Contains sample Pascal source code files for testing.
-  - **test1.pas**
-  - **test2.pas**
-  - **test3.pas**
+- **test/delphi/**: Contains sample delphi source code files for testing.
 
-  ## Prerequisites
+## Test Cases
+
+- **test/delphi/**: Contains sample delphi source code files for testing.
+  - **test1.pas**: ClassDemo: Basic object-oriented programming with single class object, constructor, destructor
+  - **test2.pas**: DestructorDemo: Negative testing - accessing destroyed objects
+  - **test3.pas**: MultipleObjectCreationDemo: Multiple class instance management 
+  - **test4.pas**: FunctionDemo: Testing function calls and scoping
+  - **test5.pas**: NestedFunctionDemo: Testing nested function calls and scoping
+  - **test6.pas**: ProcedureDemo: Nested function + Procedure demo
+  - **test7.pas**: ForLoopDemo: Control structure implementation for loop demo
+  - **test8.pas**: WhileLoopDemo: Control structure implementation while loop demo  
+  - **test9.pas**: ContinueDemo: Control structure implementation continue statement demo
+  - **test10.pas**: BreakDemo: Control structure implementation break statement demo
+  - **test11.pas**: InvalidBreakDemo: Negative testing of break statement outside loops
+
+## Bonus Implementation
+
+  1. **Formal Parameter Passing in Procedures/Functions**
+    - Demonstrated in:
+      - test4.pas: Basic function calls with parameter passing
+      - test5.pas: Nested functions with parameter scoping
+      - test6.pas: Combined procedures and functions with formal parameters
+
+  2. **Constant Propagation and Arithmetic Evaluation**
+    - Implemented in:
+      - test8.pas: Demonstrates arithmetic evaluation in while loop iterations
+
+## Prerequisites
 
   1. Java Development Kit (JDK) 8 or later
   2. ANTLR4 Runtime Library (included in lib directory)
 
-  ## Building the Project
+## Building the Project
 
   First, generate the lexer and parser from the grammar:
   ```bash
@@ -38,69 +74,7 @@ Object-oriented features on top of the Pascal ANTLR grammr by handling the creat
   javac -d bin -cp "lib/antlr-4.13.2-complete.jar" src/main/antlr4/src/grammar/*.java src/main/java/*.java
   ```
 
-  To run a test file: To run the interpreter, execute the `Main` class. It will read the Pascal test files from the `test/pascal` directory, generate the AST, and pass it to the interpreter.
+  To run a test file: To run the interpreter, execute the `Main` class. It will read the delphi test files from the `test/delphi` directory, generate the AST, and pass it to the interpreter.
   ```bash
   java -cp "bin:lib/antlr-4.13.2-complete.jar" Main test1.pas
   ```
-
-
-  # Test Case Documentation: test1.pas
-
-  ## Scenario Description
-  Tests the basic object-oriented programming concepts using a single class object.
-
-  ## Test Components
-  1. **Object Creation**
-    - Creates a single instance of the class
-    - Demonstrates constructor invocation
-
-  2. **Input Handling**
-    - Accepts input values from command line
-    - Processes user input for object initialization
-
-  3. **Encapsulation Testing**
-    - Implements getter methods to access private field values
-    - Validates proper data hiding and access control
-    - Demonstrates proper encapsulation principles
-
-  4. **Memory Management**
-    - Tests proper object destruction
-    - Verifies destructor call for cleanup
-    - Ensures proper memory deallocation
-
-  ## Test Flow
-  1. Program execution starts
-  2. User inputs required values
-  3. Object is created with constructor
-  4. Field values are displayed using getter methods
-  5. Object is destroyed via destructor
-
-# Test Case Documentation: test2.pas
-
-## Scenario Description
-This is a negative scenario where we try to access an object after calling destructor
-
-## Test Components
-1. **Invalid Access Testing**
-  - Attempts to access destroyed objects
-  - Tests system response to illegal operations
-  - Tests destructor behavior
-
-## Test Flow
-1. Create object instance
-2. Call destructor explicitly
-3. Attempt to access destroyed object
-4. Verify appropriate exception handling
-
-
-# Test Case Documentation: test2.pas
-
-## Scenario Description
-This test case demonstrates the creation and management of multiple class instances, showcasing proper object lifecycle handling and interaction between objects. It verifies the system's ability to maintain multiple objects simultaneously while ensuring proper memory management and encapsulation.
-
-## Test Flow
-1. Create multiple object instances
-2. Initialize objects with different values
-3. Verify data consistency across instances
-5. Call destructors in sequence
-6. Validate proper cleanup of all instances
