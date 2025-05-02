@@ -4,13 +4,22 @@ import java.util.*;
 import java.io.*;
 
 public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
-    private Map<String, Object> variables = new HashMap<>();
+    private Map<String, Object> globalVariables = new HashMap<>();
     private Map<String, Map<String, Object>> objects = new HashMap<>();
     private Map<String, String> objectClasses = new HashMap<>();
     private Map<String, Map<String, ParseTree>> methods = new HashMap<>();
+    private Map<String, Object>localVariables = new HashMap<>(); // For function/procedure curr local variables
     private Scanner scanner = new Scanner(System.in);
     private String currentClass = null;
     private String currentObject = null;
+    private String currentFunction = null; // Track current function/procedure
+    private boolean breakEncountered = false; //track loop control
+    private boolean continueEncountered = false; //track loop control
+    private int loopDepth = 0;  // Track nested loop depth because continue/break needs to be inside a loop. if not invalid. 
+    private enum LoopControlSignal {
+        BREAK,
+        CONTINUE
+    }
 
     @Override
     public Object visitProgram(delphiParser.ProgramContext ctx) {
@@ -27,13 +36,24 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
 
     @Override
     public Object visitVariableDeclarationPart(delphiParser.VariableDeclarationPartContext ctx) {
+        Map<String, Object> targetMap;
+        if (currentFunction != null) {
+            // Local variables in function/procedure
+            targetMap = localVariables;
+        }
+        else {
+            // Global variables
+            targetMap = globalVariables;
+        }
+        
         for (delphiParser.VariableDeclarationContext varDecl : ctx.variableDeclaration()) {
             for (TerminalNode ident : varDecl.identifierList().IDENT()) {
-                variables.put(ident.getText().toLowerCase(), "");
+                targetMap.put(ident.getText().toLowerCase(), "");
             }
         }
         return null;
     }
+
 
     @Override
     public Object visitClassDeclaration(delphiParser.ClassDeclarationContext ctx) {
@@ -46,7 +66,10 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
     @Override
     public Object visitStatements(delphiParser.StatementsContext ctx) {
         for (delphiParser.StatementContext stmt : ctx.statement()) {
-            visit(stmt);
+            Object result = visit(stmt);
+            if (result instanceof LoopControlSignal) {
+                return result;  // Propagate break/continue up
+            }
         }
         return null;
     }
@@ -56,16 +79,54 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
     return visit(ctx.statements());
     }
 
-     @Override
+    @Override
     public Object visitExpr(delphiParser.ExprContext ctx) {
+        if (ctx.stringExpr() != null) {
+            return visit(ctx.stringExpr());
+        }
+        if (ctx.arithmeticExpr() != null) {
+            return visit(ctx.arithmeticExpr());
+        }
+        if (ctx.methodCall() != null) {
+            return visit(ctx.methodCall());
+        }
+        return "";
+    }
+
+    @Override
+    public Object visitStringExpr(delphiParser.StringExprContext ctx) {
         StringBuilder result = new StringBuilder();
-        for (delphiParser.ValueContext valueCtx : ctx.value()) {
-            Object value = visit(valueCtx);
-            if (value != null) {
-                result.append(value);
-            }
+        List<delphiParser.ValueContext> values = ctx.value();
+        
+        // Handle first value
+        result.append(visit(values.get(0)));
+        
+        // Handle subsequent concatenations
+        for (int i = 1; i < values.size(); i++) {
+            result.append(visit(values.get(i)));
         }
         return result.toString();
+    }
+
+    @Override
+    public Object visitArithmeticExpr(delphiParser.ArithmeticExprContext ctx) {
+    List<delphiParser.ValueContext> values = ctx.value();
+    Object result = visit(values.get(0));
+    
+    for (int i = 1; i < values.size(); i++) {
+        // double current = Double.parseDouble(result.toString());
+        // double next = Double.parseDouble(visit(values.get(i)).toString());
+        int current = Integer.parseInt(result.toString());
+        int next = Integer.parseInt(visit(values.get(i)).toString());
+
+
+        if (ctx.PLUS(i-1) != null) {
+            result = String.valueOf(current + next);
+        } else if (ctx.MINUS(i-1) != null) {
+            result = String.valueOf(current - next);
+        }
+    }
+    return result;
     }
 
     @Override
@@ -87,32 +148,43 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
         if (ctx.consoleStatement() != null) return visit(ctx.consoleStatement());
         if (ctx.destructorCall() != null) return visit(ctx.destructorCall());
         if (ctx.objectCreation() != null) return visit(ctx.objectCreation());
+        if (ctx.methodCall() != null) return visit(ctx.methodCall());
+        if (ctx.whileStatement() != null) return visit(ctx.whileStatement());
+        if (ctx.forStatement() != null) return visit(ctx.forStatement());
+        if (ctx.breakStatement() != null) return visit(ctx.breakStatement());
+        if (ctx.continueStatement() != null) return visit(ctx.continueStatement());
         return null;
     }
 
     @Override
     public Object visitVariable(delphiParser.VariableContext ctx) {
-    if (ctx.classIdentifier() != null) {
-        String objectName = ctx.classIdentifier().getText().toLowerCase();
-        String fieldName = ctx.IDENT().getText().toLowerCase();
-        Map<String, Object> object = objects.get(objectName);
-        if (object != null) {
-            return object.get(fieldName);
+
+        if (ctx.classIdentifier() != null) {
+            String objectName = ctx.classIdentifier().getText().toLowerCase();
+            String fieldName = ctx.IDENT().getText().toLowerCase();
+            Map<String, Object> object = objects.get(objectName);
+            if (object != null) {
+                return object.get(fieldName);
+            }
         }
-    }
-    String varName = ctx.getText().toLowerCase();
-    if (currentObject != null) {
-        Map<String, Object> objectFields = objects.get(currentObject);
-        if (objectFields != null && objectFields.containsKey(varName)) {
-            return objectFields.get(varName);
+        String varName = ctx.getText().toLowerCase();
+
+        if (currentObject != null) {
+            Map<String, Object> objectFields = objects.get(currentObject);
+            if (objectFields != null && objectFields.containsKey(varName)) {
+                return objectFields.get(varName);
+            }
         }
+        if (localVariables.containsKey(varName)) {
+            return localVariables.get(varName);
+        }
+        else {
+            return globalVariables.get(varName);
+        } 
     }
-    return variables.get(varName);
-}
 
     @Override
     public Object visitDestructorBody(delphiParser.DestructorBodyContext ctx) {
-        // Visit all statements in the destructor body  
         for (delphiParser.StatementContext stmt : ctx.statement()) {
             visit(stmt);
         }
@@ -237,7 +309,11 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
     public Object visitReadStatement(delphiParser.ReadStatementContext ctx) {
         String varName = ctx.variable().getText().toLowerCase();
         String input = scanner.nextLine();
-        variables.put(varName, input);
+        if (currentFunction != null) {
+            localVariables.put(varName, input);
+        } else {
+            globalVariables.put(varName, input);
+        }
         return null;
     }
 
@@ -246,8 +322,8 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
     String varName = ctx.variable().getText().toLowerCase();
     Object value;
     
-    if (ctx.expr().functionCall() != null) {
-        value = visit(ctx.expr().functionCall());
+    if (ctx.expr().methodCall() != null) {
+        value = visit(ctx.expr().methodCall());
     } else {
         value = visit(ctx.expr());
     }
@@ -258,42 +334,278 @@ public class CustomDelphiVisitor extends delphiBaseVisitor<Object> {
         if (objectFields != null) {
             objectFields.put(varName, value);
         }
-    } else {
-        // Handle assignment to global variables
-        variables.put(varName, value);
-    }
+    } 
+    
+    else if (currentFunction != null) {
+            //System.out.println("here during asignment for varName " + varName + ":" + value + ";" + localVariables);
+            localVariables.put(varName, value);
+        }
+    else {
+            globalVariables.put(varName, value);
+        }
     
     return null;
    } 
 
     @Override
     public Object visitFunctionImpl(delphiParser.FunctionImplContext ctx) {
-    String className = ctx.variable().classIdentifier().getText().toLowerCase();
-    String methodName = ctx.variable().IDENT().getText().toLowerCase();
-    Map<String, ParseTree> classMethods = methods.get(className);
-    if (classMethods != null) {
-        classMethods.put(methodName, ctx.compoundStatement());
+    String functionName = ctx.variable().IDENT().getText().toLowerCase();
+    if (ctx.variable() != null && ctx.variable().classIdentifier() != null) {
+        // Handle class method
+        String className = ctx.variable().classIdentifier().getText().toLowerCase();
+        Map<String, ParseTree> classMethods = methods.get(className);
+        if (classMethods != null) {
+            classMethods.put(functionName, ctx.compoundStatement());
+        }
+    } else {
+        // Handle global function
+        methods.putIfAbsent("global", new HashMap<>());
+        methods.get("global").put(functionName, ctx.compoundStatement());
     }
     return null;
     }
 
     @Override
-    public Object visitFunctionCall(delphiParser.FunctionCallContext ctx) {
-    String objectName = ctx.classIdentifier().getText().toLowerCase();
-    String methodName = ctx.IDENT().getText().toLowerCase();
-    String className = objectClasses.get(objectName);
-    if (!objects.containsKey(objectName)) {
-            System.out.println("Error: Object '" + objectName + "' does not exist");
-            throw new RuntimeException("Object not found");
+    public Object visitProcedureImpl(delphiParser.ProcedureImplContext ctx) {
+        String procedureName = ctx.variable().IDENT().getText().toLowerCase();
+        if (ctx.variable() != null && ctx.variable().classIdentifier() != null) {
+            // Handle class method
+            String className = ctx.variable().classIdentifier().getText().toLowerCase();
+            Map<String, ParseTree> classMethods = methods.get(className);
+            if (classMethods != null) {
+                classMethods.put(procedureName, ctx.compoundStatement());
+            }
+        } else {
+            // Handle global procedure
+            methods.putIfAbsent("global", new HashMap<>());
+            methods.get("global").put(procedureName, ctx.compoundStatement());
         }
-    Map<String, ParseTree> classMethods = methods.get(className);
-    if (classMethods != null && classMethods.containsKey(methodName)) {
-        currentObject = objectName; //since we are assuming functions are only class methods
-        Object r = visit(classMethods.get(methodName));
-        Map<String, Object> objectFields = objects.get(currentObject);
-        currentObject = null;
-        return objectFields.get("result");
+        return null;
     }
+
+    @Override
+    public Object visitMethodCall(delphiParser.MethodCallContext ctx) {
+    String methodName = ctx.IDENT().getText().toLowerCase();
+    String objectName = ctx.classIdentifier() != null ? ctx.classIdentifier().getText().toLowerCase() : null;
+    String className = objectName != null ? objectClasses.get(objectName) : "global";
+
+    // Store context
+    String prevClass = currentClass;
+    String prevObject = currentObject;
+    String prevFunction = currentFunction;
+    Map<String, Object> prevLocalVars = new HashMap<>(localVariables);
+
+    // Set new context
+    currentClass = className;
+    currentObject = objectName;
+    currentFunction = methodName;
+
+    // Handle parameters
+    List<Object> paramValues = new ArrayList<>();
+    if (ctx.parameterList() != null) {
+        for (delphiParser.ValueContext valueCtx : ctx.parameterList().value()) {
+            paramValues.add(visit(valueCtx));
+        }
+    }
+
+    if (currentObject != null){//this means function is a class method
+
+    if (!objects.containsKey(currentObject)) {
+        System.out.println("Error: Object '" + currentObject + "' does not exist");
+        throw new RuntimeException("Object not found");
+    }
+    }
+
+
+    Object result = null;
+    Map<String, ParseTree> methodMap = (currentObject != null) ? 
+        methods.get(currentClass) : methods.get("global");
+
+    if (methodMap != null && methodMap.containsKey(methodName)) {
+        ParseTree methodBody = methodMap.get(methodName);
+        ParseTree parent = methodBody.getParent();
+        
+        // Check if it's a function or procedure based on parent context
+        boolean isFunction = (parent instanceof delphiParser.FunctionImplContext);
+        
+        // Setup local variables and execute method
+        setupMethodParameters(parent, paramValues);
+        visit(methodBody);
+        
+        // Handle return value for functions
+        if (isFunction) {
+            result = currentObject != null ? 
+                objects.get(currentObject).get("result") :
+                localVariables.get("result");
+        }
+    }
+
+    // Restore context
+    currentClass = prevClass;
+    currentObject = prevObject;
+    currentFunction = prevFunction;
+    localVariables = prevLocalVars;
+
+    return result;
+    }
+
+    private void setupMethodParameters(ParseTree methodParent, List<Object> paramValues) {
+    List<delphiParser.FormalParameterSectionContext> params = new ArrayList<>();
+    
+    if (methodParent instanceof delphiParser.FunctionImplContext) {
+        delphiParser.FunctionImplContext funcCtx = (delphiParser.FunctionImplContext) methodParent;
+        if (funcCtx.formalParameterList() != null) {
+            params = funcCtx.formalParameterList().formalParameterSection();
+        }
+    } else if (methodParent instanceof delphiParser.ProcedureImplContext) {
+        delphiParser.ProcedureImplContext procCtx = (delphiParser.ProcedureImplContext) methodParent;
+        if (procCtx.formalParameterList() != null) {
+            params = procCtx.formalParameterList().formalParameterSection();
+        }
+    }
+
+    localVariables.clear();
+    for (int i = 0; i < Math.min(params.size(), paramValues.size()); i++) {
+        String paramName = params.get(i).identifierList().IDENT(0).getText().toLowerCase();
+        localVariables.put(paramName, paramValues.get(i));
+    }
+    }
+
+    public Object visitWhileStatement(delphiParser.WhileStatementContext ctx) {
+    loopDepth++;
+    while (evaluateBoolean(ctx.booleanExpr())) {
+        Object result = visit(ctx.compoundStatement());
+        if (breakEncountered) {
+            breakEncountered = false;
+            break;
+        }
+        if (continueEncountered) {
+            continueEncountered = false;
+            continue;
+        }
+        // Check if compound statement returned a control signal
+        if (result instanceof LoopControlSignal) {
+            if (result == LoopControlSignal.BREAK) {
+                break;
+            }
+            if (result == LoopControlSignal.CONTINUE) {
+                continue;
+            }
+        }
+    }
+    loopDepth--;
+    return null;
+    }   
+
+    @Override
+    public Object visitForStatement(delphiParser.ForStatementContext ctx) {
+    loopDepth++;
+    String loopVar = ctx.variable().getText().toLowerCase();
+    Object startVal = visit(ctx.value(0));
+    Object endVal = visit(ctx.value(1));
+    
+    try {
+        int start = Integer.parseInt(startVal.toString());
+        int end = Integer.parseInt(endVal.toString());
+        
+        if (ctx.TO() != null) {
+            for (int i = start; i <= end; i++) {
+                if (currentFunction != null) {
+                    localVariables.put(loopVar, String.valueOf(i));
+                } else {
+                    globalVariables.put(loopVar, String.valueOf(i));
+                }
+                Object result = visit(ctx.compoundStatement());
+                if (result instanceof LoopControlSignal) {
+                    if (result == LoopControlSignal.BREAK) {
+                        break;
+                    }
+                    if (result == LoopControlSignal.CONTINUE) {
+                        continue;
+                    }
+                }
+            }
+        } else { // DOWNTO
+            for (int i = start; i >= end; i--) {
+                if (currentFunction != null) {
+                    localVariables.put(loopVar, String.valueOf(i));
+                } else {
+                    globalVariables.put(loopVar, String.valueOf(i));
+                }
+                Object result = visit(ctx.compoundStatement());
+                if (result instanceof LoopControlSignal) {
+                    if (result == LoopControlSignal.BREAK) {
+                        break;
+                    }
+                    if (result == LoopControlSignal.CONTINUE) {
+                        continue;
+                    }
+                }
+            }
+        }
+    } catch (NumberFormatException e) {
+        System.out.println("Error: Invalid number in for loop range");
+        throw new RuntimeException("Invalid number in for loop range");
+    }
+    loopDepth--;
     return null;
     }
+
+
+    private boolean evaluateBoolean(delphiParser.BooleanExprContext ctx) {
+    Object left = visit(ctx.value(0));
+    Object right = visit(ctx.value(1));
+    String op = ctx.compareOp().getText();
+
+    // Convert operands to numbers if possible
+    int leftNum = 0, rightNum = 0;
+    boolean isNumeric = true;
+    try {
+        leftNum = Integer.parseInt(left.toString());
+        rightNum = Integer.parseInt(right.toString());
+    } catch (NumberFormatException e) {
+        isNumeric = false;
+    }
+
+    if (isNumeric) {
+        switch (op) {
+            case "=": return leftNum == rightNum;
+            case "<>": return leftNum != rightNum;
+            case "<": return leftNum < rightNum;
+            case ">": return leftNum > rightNum;
+            case "<=": return leftNum <= rightNum;
+            case ">=": return leftNum >= rightNum;
+        }
+    } else {
+        // String comparison
+        String leftStr = left.toString();
+        String rightStr = right.toString();
+        switch (op) {
+            case "=": return leftStr.equals(rightStr);
+            case "<>": return !leftStr.equals(rightStr);
+            case "<": return leftStr.compareTo(rightStr) < 0;
+            case ">": return leftStr.compareTo(rightStr) > 0;
+            case "<=": return leftStr.compareTo(rightStr) <= 0;
+            case ">=": return leftStr.compareTo(rightStr) >= 0;
+        }
+    }
+    return false;
+    }
+
+    @Override
+    public Object visitBreakStatement(delphiParser.BreakStatementContext ctx) {
+        if (loopDepth == 0) {
+            throw new RuntimeException("Break statement outside of loop");
+        }
+        return LoopControlSignal.BREAK;
+    }
+
+    @Override
+    public Object visitContinueStatement(delphiParser.ContinueStatementContext ctx) {
+        if (loopDepth == 0) {
+            throw new RuntimeException("Continue statement outside of loop");
+        }
+        return LoopControlSignal.CONTINUE;
+    }
+
 }

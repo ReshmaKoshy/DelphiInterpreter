@@ -31,7 +31,7 @@ formalParameterList
     ;
 
 formalParameterSection
-    : parameterModifier? identifierList COLON simpleType
+    : parameterModifier? identifierList COLON type_
     ;
 
 parameterModifier
@@ -65,11 +65,11 @@ inheritedDestructorCall
     ;
 
 procedureImpl
-    : PROCEDURE variable (formalParameterList)? SEMI compoundStatement SEMI
+    : PROCEDURE variable (formalParameterList)? SEMI (variableDeclarationPart)? compoundStatement SEMI
     ;
 
 functionImpl
-    : FUNCTION variable (formalParameterList)? COLON resultType SEMI compoundStatement SEMI
+    : FUNCTION variable (formalParameterList)? COLON resultType SEMI (variableDeclarationPart)? compoundStatement SEMI
     ;
 
 resultType
@@ -225,8 +225,28 @@ statement
     | objectCreation
     //| constructorCall
     | destructorCall
-    | functionCall
-    | procedureCall) SEMI
+    | methodCall //can be function or procedureCall since format of both are same
+    | whileStatement
+    | forStatement
+    | breakStatement
+    | continueStatement
+    ) SEMI
+    ;
+
+breakStatement
+    : BREAK
+    ;
+
+continueStatement
+    : CONTINUE
+    ;
+    
+whileStatement
+    : WHILE booleanExpr DO compoundStatement
+    ;
+
+forStatement
+    : FOR variable ASSIGN value (TO | DOWNTO) value DO compoundStatement
     ;
 
 // Assignment statement rule
@@ -240,10 +260,22 @@ variable
     | classIdentifier DOT IDENT  // For field access like FName or object.field
     ;
 
+booleanExpr
+    : value compareOp value
+    ;
+
 expr 
+    : stringExpr
+    | arithmeticExpr
+    | methodCall
+    ;
+
+stringExpr
     : value (CONCAT value)*
-    | functionCall
-    | procedureCall
+    ;
+
+arithmeticExpr
+    : value ((PLUS | MINUS) value)*
     ;
 
 // Value can be number, string, or another variable
@@ -262,20 +294,14 @@ destructorCall
     : objectIdentifier DOT (FREE | destructorIdentifier)
     ;
 
-//Constructor call
-functionCall
-    : classIdentifier DOT IDENT (LPAREN parameterList RPAREN)?
-    ;
-
-//Procedure call
-procedureCall
-    : classIdentifier DOT IDENT (LPAREN parameterList RPAREN)?
+//Constructor, function, procedure call
+methodCall
+    : (classIdentifier DOT)? IDENT (LPAREN parameterList RPAREN)?
     ;
 
 // Type definitions
 type_
     : simpleType
-    | classType
     | IDENT
     ;
 
@@ -309,6 +335,30 @@ COMMA     : ',';
 LPAREN    : '(';
 RPAREN    : ')';
 EQUAL     : '=';
+WHILE      : 'WHILE';
+DO         : 'DO';
+FOR        : 'FOR';
+TO         : 'TO';
+DOWNTO     : 'DOWNTO';
+NOT_EQUAL     : '<>';
+LESS_THAN     : '<';
+GREATER_THAN  : '>';
+LESS_EQUAL    : '<=';
+GREATER_EQUAL : '>=';
+PLUS      : 'ADD';
+MINUS     : '-';
+BREAK     : 'BREAK';
+CONTINUE  : 'CONTINUE';
+
+// Add comparison operators
+compareOp
+    : EQUAL          // =
+    | NOT_EQUAL      // <>
+    | LESS_THAN     // <
+    | GREATER_THAN  // >
+    | LESS_EQUAL    // <=
+    | GREATER_EQUAL // >=
+    ;
 
 // Basic literals
 IDENT         : [a-z][a-z0-9_]*;
@@ -318,3 +368,4 @@ STRING_LITERAL: '\'' (~['])* '\'';
 WS           : [ \t\r\n]+ -> skip;
 NUMBER       : [0-9]+ ('.' [0-9]+)?;
 COMMENT      : '{' .*? '}' -> skip;
+
